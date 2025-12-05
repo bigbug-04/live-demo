@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Capture Live Selfie + Location</title>
+  <style>
+    body { font-family:Arial; padding:20px; }
+    video { width:300px; border:1px solid #ccc; }
+    canvas { display:none; }
+    #log { background:#eee; padding:10px; margin-top:10px; }
+  </style>
+</head>
+
+<body>
+  <h2>Camera + Location Capture</h2>
+
+  <video id="video" autoplay playsinline></video>
+  <canvas id="canvas" width="300" height="220"></canvas>
+
+  <br><br>
+  <button id="capture">Snap & Send</button>
+
+  <div id="log">Waiting...</div>
+
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const log = m => document.getElementById("log").innerText = m;
+
+    let currentPos = null;
+
+    // Start camera
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => video.srcObject = stream)
+      .catch(err => log("Camera error: " + err));
+
+    // Track location
+    navigator.geolocation.watchPosition(
+      pos => currentPos = pos,
+      err => log("Location error: " + err),
+      { enableHighAccuracy: true }
+    );
+
+    document.getElementById("capture").onclick = async function () {
+      if (!currentPos) return log("Waiting for GPS...");
+
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const blob = await new Promise(r => canvas.toBlob(r, "image/jpeg"));
+
+      const fd = new FormData();
+      fd.append("selfie", blob);
+      fd.append("lat", currentPos.coords.latitude);
+      fd.append("lng", currentPos.coords.longitude);
+      fd.append("accuracy", currentPos.coords.accuracy);
+
+      const res = await fetch("/upload", { method: "POST", body: fd });
+      log(await res.text());
+    };
+  </script>
+</body>
+</html>
